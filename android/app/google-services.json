@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "644633999651",
+    "project_id": "mychat-c842e",
+    "storage_bucket": "mychat-c842e.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:644633999651:android:b67e9a0974a243a15d3496",
+        "android_client_info": {
+          "package_name": "com.temphi20.mychat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "644633999651-c0ook832je6v72cvbm8cnah8s4gdgppt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.temphi20.mychat",
+            "certificate_hash": "afb1cb3dacdca2c763270c0331ffc4d235d85d51"
+          }
+        },
+        {
+          "client_id": "644633999651-m88pi1fd5tsntaf5vk14b3hdm889hee0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvQxFO5EzSmgqcVBD2b2N7lSdI_M6Futk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "644633999651-m88pi1fd5tsntaf5vk14b3hdm889hee0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
