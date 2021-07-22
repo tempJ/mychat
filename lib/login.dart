@@ -1,43 +1,34 @@
 import 'dart:async';
-// import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:fluttertoast/fluttertoast.dart';
-// import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mychat/widget/alert.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_button/constants.dart';
 import 'package:sign_button/create_button.dart';
 
 import 'package:mychat/const.dart';
 import 'package:mychat/home.dart';
-// import 'package:mychat/widget/loading.dart';
-import 'package:mychat/model/chat_user.dart';
 
 class LoginScreen extends StatefulWidget {
   LoginScreen({Key? key}) : super(key: key);
-
-  // final String title;
 
   @override
   LoginScreenState createState() => LoginScreenState();
 }
 
 class LoginScreenState extends State<LoginScreen> {
-  // final GoogleSignIn googleSignIn = GoogleSignIn();
-  // final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
   SharedPreferences? prefs;
 
   bool isLoading = false;
   bool isLogIn = false;
 
-  // final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  User? _currentUser;
 
+  final _idController = TextEditingController();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -47,39 +38,11 @@ class LoginScreenState extends State<LoginScreen> {
   String _changeSign = "NEED REGISTER?";
   String _buttonText = "LOGIN";
 
-  // final AuthCredential authCredential = GoogleAuthProvider.getCredential();
-  // final AuthCredential authCredential = GoogleAuthProvider.credential();
-
-  // bool isLoading = false;
-  // bool isLogIn = false;
-  // User? currentUser;
-
   @override
   void initState() {
     super.initState();
-    isSignIn();
-  }
-
-  void isSignIn() async {
-    // this.setState(() {
-    //   isLoading = true;
-    // });
-
-    // prefs = await SharedPreferences.getInstance();
-
-    // isLogIn = await _googleSignIn.isSignedIn();
-    // if (isLogIn && prefs?.getString('id') != null) {
-    //   Navigator.pushReplacement(
-    //     context,
-    //     MaterialPageRoute(
-    //         builder: (context) =>
-    //             HomeScreen(currentUserId: prefs!.getString('id') ?? "")),
-    //   );
-    // }
-
-    // this.setState(() {
-    //   isLoading = false;
-    // });
+    _emailController.text = "test@test.com";
+    _passwordController.text = "test1234";
   }
 
   Future<Null> _handleSignIn() async {
@@ -93,12 +56,21 @@ class LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         await _firestore
             .collection("user")
-            .where("uid", isEqualTo: user.uid)
+            .doc(user.uid)
             .get()
-            .then((QuerySnapshot querySnapshot) => Navigator.push(
+            .then((DocumentSnapshot document) {
+          if (document.exists) {
+            Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => HomeScreen(currentUid: user.uid))));
+                    builder: (context) => HomeScreen(currentUid: user.uid)));
+          }
+        });
+
+        // .then((DocumentReference documentReference) => Navigator.push(
+        //     context,
+        //     MaterialPageRoute(
+        //         builder: (context) => HomeScreen(currentUid: user.uid))));
       }
     } on FirebaseAuthException catch (e) {
       if (e.code == "wrong-password") {
@@ -115,45 +87,69 @@ class LoginScreenState extends State<LoginScreen> {
   }
 
   Future<Null> _handleSignUp() async {
+    final String myid = _idController.text;
+    final String name = _nameController.text;
+    final String email = _emailController.text;
+    final String password = _passwordController.text;
+    final String confirm = _confirmController.text;
+
     try {
-      if (_nameController.text.length < 1) {
-        _buildMsg("Please fill in your name.");
+      if (myid.length < 1) {
+        _buildAlert("Please fill in your ID.");
         return null;
       }
 
-      if (_emailController.text.length < 1) {
-        _buildMsg("Please fill in your email.");
+      final int ret = await _firestore
+          .collection("user")
+          .where("myid", isEqualTo: myid)
+          .get()
+          .then((QuerySnapshot snapshot) {
+        if (snapshot.docs.isNotEmpty) {
+          return -1;
+        }
+        return 0;
+      });
+      if (ret == -1) {
+        _buildAlert("This ID already exists.");
         return null;
       }
 
-      if (_passwordController.text.length < 1) {
-        _buildMsg("Please fill in your password.");
+      if (name.length < 1) {
+        _buildAlert("Please fill in your name.");
         return null;
       }
 
-      if (_passwordController.text != _confirmController.text) {
-        _buildMsg("Please check your password again.");
+      if (email.length < 1) {
+        _buildAlert("Please fill in your email.");
+        return null;
+      }
+
+      if (password.length < 1) {
+        _buildAlert("Please fill in your password.");
+        return null;
+      }
+
+      if (password != confirm) {
+        _buildAlert("Please check your password or confirm password again.");
         return null;
       }
 
       UserCredential userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-              email: _emailController.text, password: _passwordController.text);
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       User? user = userCredential.user;
 
       if (user != null) {
-        _firestore.collection("user").add({
-          "uid": user.uid,
-          "email": user.email,
-          "name": _nameController.text,
-          "photoUrl": "",
+        _firestore.collection("user").doc(user.uid).set({
+          "myid": myid,
+          "email": email,
+          "name": name,
+          "photoURL": "",
           "about": ""
         });
-        _firestore.collection("room").add({"uid": user.uid, "cid": []});
       }
 
-      _buildMsg("Sign up completed.");
+      _buildAlert("Sign up completed.");
 
       setState(() {
         _titleText = "Sign In";
@@ -162,161 +158,20 @@ class LoginScreenState extends State<LoginScreen> {
       });
     } on FirebaseAuthException catch (e) {
       if (e.code == "weak-password") {
-        _buildMsg("The password provided is too weak.");
+        _buildAlert("The password provided is too weak.");
       } else if (e.code == "email-already-in-use") {
-        _buildMsg("The account already exists for that email.");
+        _buildAlert("The account already exists for that email.");
       }
     } catch (e) {
-      _buildMsg(e.toString());
+      _buildAlert(e.toString());
     }
-  }
-
-  // void _goSignIn(){}
-
-  // void _confirmPassword() {
-  //   final confirmController = TextEditingController();
-  //   showDialog(
-  //       context: context,
-  //       builder: (context) {
-  //         return AlertDialog(
-  //           content: Column(children: <Widget>[
-  //             Text("Please enter your password again."),
-  //             TextField(
-  //               controller: confirmController,
-  //               obscureText: true,
-  //               style: TextStyle(color: fontColor),
-  //               decoration: InputDecoration(
-  //                   enabledBorder: UnderlineInputBorder(
-  //                       borderSide: BorderSide(color: fontColor)),
-  //                   focusedBorder: UnderlineInputBorder(
-  //                       borderSide: BorderSide(color: fontColor)),
-  //                   labelText: "Confirm Password",
-  //                   labelStyle: TextStyle(color: fontColor)),
-  //             ),
-  //           ]),
-  //           actions: <Widget>[
-  //             Container(
-  //               child: IconButton(
-  //                 icon: const Icon(Icons.close),
-  //                 color: exitColor,
-  //                 onPressed: () async {
-  //                   if (_passwordController.text == confirmController.text) {
-  //                     Navigator.pop(context, "close");
-  //                   }
-  //                 },
-  //               ),
-  //               alignment: Alignment.centerRight,
-  //             )
-  //           ],
-  //         );
-  //       });
-  // }
-
-  // Future<Null> handleSignIn() async {
-  //   prefs = await SharedPreferences.getInstance();
-
-  //   this.setState(() {
-  //     isLoading = true;
-  //   });
-
-  //   GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-  //   if (googleUser != null) {
-  //     GoogleSignInAuthentication? googleAuth = await googleUser.authentication;
-  //     final AuthCredential credential = GoogleAuthProvider.credential(
-  //       accessToken: googleAuth.accessToken,
-  //       idToken: googleAuth.idToken,
-  //     );
-
-  //     User? firebaseUser =
-  //         (await firebaseAuth.signInWithCredential(credential)).user;
-
-  //     if (firebaseUser != null) {
-  //       // Check is already sign up
-  //       final QuerySnapshot result = await FirebaseFirestore.instance
-  //           .collection('user')
-  //           .where('id', isEqualTo: firebaseUser.uid)
-  //           .get();
-  //       final List<DocumentSnapshot> documents = result.docs;
-  //       if (documents.length == 0) {
-  //         // Update data to server if new user
-  //         FirebaseFirestore.instance
-  //             .collection('user')
-  //             .doc(firebaseUser.uid)
-  //             .set({
-  //           'name': firebaseUser.displayName,
-  //           'id': firebaseUser.uid,
-  //           'createdAt': DateTime.now().millisecondsSinceEpoch.toString(),
-  //           'chattingWith': null
-  //         });
-
-  //         // Write data to local
-  //         currentUser = firebaseUser;
-  //         await prefs?.setString('id', currentUser!.uid);
-  //         await prefs?.setString('name', currentUser!.displayName ?? "");
-  //       } else {
-  //         DocumentSnapshot documentSnapshot = documents[0];
-  //         UserChat userChat = UserChat.fromDocument(documentSnapshot);
-  //         // Write data to local
-  //         await prefs?.setString('id', userChat.id);
-  //         await prefs?.setString('name', userChat.name);
-  //         await prefs?.setString('about', userChat.about);
-  //       }
-  //       Fluttertoast.showToast(msg: "Sign in success");
-  //       this.setState(() {
-  //         isLoading = false;
-  //       });
-
-  //       Navigator.push(
-  //           context,
-  //           MaterialPageRoute(
-  //               builder: (context) =>
-  //                   HomeScreen(currentUserId: firebaseUser.uid)));
-  //     } else {
-  //       Fluttertoast.showToast(msg: "Sign in fail");
-  //       this.setState(() {
-  //         isLoading = false;
-  //       });
-  //     }
-  //   } else {
-  //     Fluttertoast.showToast(msg: "Google Sign in fail");
-  //     this.setState(() {
-  //       isLoading = false;
-  //     });
-  //   }
-  // }
-
-  void _buildMsg(String msg) {
-    showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            content: Text(msg),
-            actions: <Widget>[
-              IconButton(
-                icon: Icon(Icons.close),
-                color: exitColor,
-                onPressed: () => Navigator.pop(context, "OK"),
-              )
-            ],
-          );
-        });
   }
 
   void _buildAlert(String error) {
     showDialog(
         context: context,
         builder: (context) {
-          return AlertDialog(
-            content: Text(
-                "$error\n\nemail: ${_emailController.text}\n\npassword: ${_passwordController.text}"),
-            actions: <Widget>[
-              IconButton(
-                icon: Icon(Icons.close),
-                color: exitColor,
-                onPressed: () => Navigator.pop(context, "OK"),
-              )
-            ],
-          );
+          return ShowAlert(error);
         });
   }
 
@@ -329,7 +184,9 @@ class LoginScreenState extends State<LoginScreen> {
             ? _passwordController
             : ((label == "Confirm Password")
                 ? _confirmController
-                : ((label == "Name") ? _nameController : _emailController)),
+                : ((label == "Name")
+                    ? _nameController
+                    : ((label == "ID") ? _idController : _emailController))),
         obscureText: label.contains("Password") ? true : false,
         style: TextStyle(color: whiteColor),
         decoration: InputDecoration(
@@ -372,6 +229,9 @@ class LoginScreenState extends State<LoginScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      (_buttonText == "LOGIN")
+                          ? SizedBox(height: 0)
+                          : _buildForm("ID"),
                       (_buttonText == "LOGIN")
                           ? SizedBox(height: 0)
                           : _buildForm("Name"),

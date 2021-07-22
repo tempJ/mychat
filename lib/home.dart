@@ -1,4 +1,5 @@
 import 'dart:async';
+// import 'dart:html';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,9 +10,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:mychat/chat.dart';
 
 import 'package:mychat/const.dart';
 import 'package:mychat/main.dart';
+import 'package:mychat/model/chat_chat.dart';
 import 'package:mychat/model/chat_room.dart';
 import 'package:mychat/model/chat_user.dart';
 import 'package:mychat/widget/loading.dart';
@@ -37,6 +40,10 @@ class HomeScreenState extends State<HomeScreen> {
   final GoogleSignIn googleSignIn = GoogleSignIn();
   final ScrollController listScrollController = ScrollController();
 
+  // final _addController = TextEditingController();
+  // List<String>? addId;
+  // Set<String> _addId = Set();
+
   int _limit = 20;
   int _limitIncrement = 20;
   bool isLoading = false;
@@ -59,7 +66,7 @@ class HomeScreenState extends State<HomeScreen> {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('onMessage: $message');
       if (message.notification != null) {
-        showNotification(message.notification!);
+        // showNotification(message.notification!);
       }
       return;
     });
@@ -95,139 +102,6 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void onItemMenuPress(Choice choice) {
-    if (choice.title == 'Log out') {
-      handleSignOut();
-    } else {
-      // Navigator.push(
-      //     context, MaterialPageRoute(builder: (context) => ChatSettings()));
-    }
-  }
-
-  void showNotification(RemoteNotification remoteNotification) async {
-    AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      Platform.isAndroid
-          ? 'com.dfa.flutterchatdemo'
-          : 'com.duytq.flutterchatdemo',
-      'Flutter chat demo',
-      'your channel description',
-      playSound: true,
-      enableVibration: true,
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    IOSNotificationDetails iOSPlatformChannelSpecifics =
-        IOSNotificationDetails();
-    NotificationDetails platformChannelSpecifics = NotificationDetails(
-        android: androidPlatformChannelSpecifics,
-        iOS: iOSPlatformChannelSpecifics);
-
-    print(remoteNotification);
-
-    await flutterLocalNotificationsPlugin.show(
-      0,
-      remoteNotification.title,
-      remoteNotification.body,
-      platformChannelSpecifics,
-      payload: null,
-    );
-  }
-
-  Future<bool> onBackPress() {
-    openDialog();
-    return Future.value(false);
-  }
-
-  Future<Null> openDialog() async {
-    switch (await showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return SimpleDialog(
-            contentPadding:
-                EdgeInsets.only(left: 0.0, right: 0.0, top: 0.0, bottom: 0.0),
-            children: <Widget>[
-              Container(
-                color: themeColor,
-                margin: EdgeInsets.all(0.0),
-                padding: EdgeInsets.only(bottom: 10.0, top: 10.0),
-                height: 100.0,
-                child: Column(
-                  children: <Widget>[
-                    Container(
-                      child: Icon(
-                        Icons.exit_to_app,
-                        size: 30.0,
-                        color: Colors.white,
-                      ),
-                      margin: EdgeInsets.only(bottom: 10.0),
-                    ),
-                    Text(
-                      'Exit app',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18.0,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Are you sure to exit app?',
-                      style: TextStyle(color: Colors.white70, fontSize: 14.0),
-                    ),
-                  ],
-                ),
-              ),
-              SimpleDialogOption(
-                onPressed: () {
-                  Navigator.pop(context, 0);
-                },
-                child: Row(
-                  children: <Widget>[
-                    Container(
-                      child: Icon(
-                        Icons.cancel,
-                        color: fontColor,
-                      ),
-                      margin: EdgeInsets.only(right: 10.0),
-                    ),
-                    Text(
-                      'CANCEL',
-                      style: TextStyle(
-                          color: fontColor, fontWeight: FontWeight.bold),
-                    )
-                  ],
-                ),
-              ),
-              SimpleDialogOption(
-                onPressed: () {
-                  Navigator.pop(context, 1);
-                },
-                child: Row(
-                  children: <Widget>[
-                    Container(
-                      child: Icon(
-                        Icons.check_circle,
-                        color: fontColor,
-                      ),
-                      margin: EdgeInsets.only(right: 10.0),
-                    ),
-                    Text(
-                      'YES',
-                      style: TextStyle(
-                          color: fontColor, fontWeight: FontWeight.bold),
-                    )
-                  ],
-                ),
-              ),
-            ],
-          );
-        })) {
-      case 0:
-        break;
-      case 1:
-        exit(0);
-    }
-  }
-
   Future<Null> handleSignOut() async {
     this.setState(() {
       isLoading = true;
@@ -246,33 +120,57 @@ class HomeScreenState extends State<HomeScreen> {
         (Route<dynamic> route) => false);
   }
 
-  void _buildAlert(String str) {
-    showDialog(
+  void _buildAddChat() async {
+    Set<String> uidSet = await showDialog(
         context: context,
         builder: (context) {
-          return AlertDialog(content: Text(str));
+          return AddDialog(currentUid);
         });
-  }
 
-  // Map<String, Object?> toJson(){
-  //   return {
-  //     ''
-  //   }
-  // }
+    if (uidSet.isNotEmpty) {
+      uidSet.add(currentUid);
+      List<String> users = [];
+
+      for (String uid in uidSet) {
+        await _firestore
+            .collection("user")
+            .doc(uid)
+            .get()
+            .then((DocumentSnapshot document) {
+          ChatUser user = ChatUser.fromDocument(document);
+          users.add(user.name);
+        });
+      }
+
+      final document = await _firestore.collection("room").add({
+        "iconUrl": "",
+        "title": (users.length < 3) ? users.first : users.join(", "),
+        "last": "",
+        "uids": uidSet.toList(),
+      });
+
+      await _firestore
+          .collection("chat")
+          .doc(document.id)
+          .set({"head": currentUid, "context": []});
+    }
+  }
 
   Widget _buildRoom(BuildContext context, DocumentSnapshot? document) {
     if (document != null) {
-      ChatRoom chatRoom = ChatRoom.fromDocument(document);
+      ChatRoom room = ChatRoom.fromDocument(document);
+      Widget icon = defaultPic;
+      if (room.iconUrl != "") {
+        icon = Image.network(room.iconUrl,
+            width: 50, height: 50, fit: BoxFit.fill);
+      }
+
       return Container(
         child: TextButton(
           child: Row(
             children: <Widget>[
               Material(
-                child: Icon(
-                  Icons.account_circle,
-                  size: 50.0,
-                  color: darkGreyColor,
-                ),
+                child: icon,
                 borderRadius: BorderRadius.all(Radius.circular(25.0)),
                 clipBehavior: Clip.hardEdge,
               ),
@@ -282,7 +180,7 @@ class HomeScreenState extends State<HomeScreen> {
                     children: <Widget>[
                       Container(
                         child: Text(
-                          "user name 표시될 구역",
+                          room.title,
                           maxLines: 1,
                           style: TextStyle(color: fontColor),
                         ),
@@ -291,7 +189,7 @@ class HomeScreenState extends State<HomeScreen> {
                       ),
                       Container(
                         child: Text(
-                          "msg 일부 표시될 구역",
+                          room.last,
                           maxLines: 1,
                           style: TextStyle(color: fontColor),
                         ),
@@ -306,15 +204,16 @@ class HomeScreenState extends State<HomeScreen> {
             ],
           ),
           onPressed: () {
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(
-            //     builder: (context) => Chat(
-            //       peerId: userChat.id,
-            //       peerAvatar: Icons.account_circle,
-            //     ),
-            //   ),
-            // );
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatScreen(
+                    currentUid: currentUid,
+                    chatRoomId: room.id,
+                    title: room.title,
+                    uids: room.uids),
+              ),
+            );
           },
           style: ButtonStyle(
             backgroundColor: MaterialStateProperty.all<Color>(lightGreyColor),
@@ -333,39 +232,22 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<QuerySnapshot> _fetchChatUser(uid) async {
-    return await _firestore
-        .collection("user")
-        .where("uid", isEqualTo: uid)
-        .get();
-  }
-
-  Future<QuerySnapshot> _fetchChat(uid) async {
-    return await _firestore
-        .collection("chat")
-        .where("cid", isEqualTo: uid)
-        .get();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Icon(Icons.chat_bubble_rounded),
         backgroundColor: themeColor,
-        elevation: 2,
+        elevation: 0,
         centerTitle: true,
       ),
       body: Stack(
         children: <Widget>[
-          // Container(
-          //   child: FutureBuilder(builder: (context, snapshot){},)
-          // )
           Container(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection("room")
-                  .where("uid", isEqualTo: currentUid)
+                  .where("uids", arrayContains: currentUid)
                   .snapshots(),
               builder: (BuildContext context,
                   AsyncSnapshot<QuerySnapshot> snapshot) {
@@ -373,19 +255,8 @@ class HomeScreenState extends State<HomeScreen> {
                   return ListView.builder(
                     padding: EdgeInsets.all(10.0),
                     itemBuilder: (context, index) {
-                      DocumentSnapshot? documentRoom =
-                          snapshot.data?.docs[index];
-                      if (documentRoom != null) {
-                        ChatRoom chatRoom = ChatRoom.fromDocument(documentRoom);
-                        // DocumentSnapshot? documentUser = await _fetchChatUser(chatRoom.uid);
-
-                        final documentChat = _firestore
-                            .collection("chat")
-                            .where("cid", isEqualTo: chatRoom.cid);
-                      }
-
-                      // ChatUser chatUser = ChatUser.fromDocument(documentUser);
-                      return _buildRoom(context, documentRoom);
+                      DocumentSnapshot? document = snapshot.data?.docs[index];
+                      return _buildRoom(context, document);
                     },
                     itemCount: snapshot.data?.docs.length,
                     controller: listScrollController,
@@ -406,47 +277,130 @@ class HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.add),
         elevation: 2,
         backgroundColor: themeColor,
-        onPressed: () {},
+        onPressed: () => _buildAddChat(),
       ),
-      // body: WillPopScope(
-      //   child: Stack(
-      //     children: <Widget>[
-      //       // List
-      //       Container(
-      //         child: StreamBuilder<QuerySnapshot>(
-      //           stream: FirebaseFirestore.instance
-      //               .collection('users')
-      //               .limit(_limit)
-      //               .snapshots(),
-      //           builder: (BuildContext context,
-      //               AsyncSnapshot<QuerySnapshot> snapshot) {
-      //             if (snapshot.hasData) {
-      //               return ListView.builder(
-      //                 padding: EdgeInsets.all(10.0),
-      //                 itemBuilder: (context, index) =>
-      //                     buildItem(context, snapshot.data?.docs[index]),
-      //                 itemCount: snapshot.data?.docs.length,
-      //                 controller: listScrollController,
-      //               );
-      //             } else {
-      //               return Center(
-      //                 child: CircularProgressIndicator(
-      //                   valueColor: AlwaysStoppedAnimation<Color>(fontColor),
-      //                 ),
-      //               );
-      //             }
-      //           },
-      //         ),
-      //       ),
+    );
+  }
+}
 
-      //       // Loading
-      //       Positioned(
-      //         child: isLoading ? const Loading() : Container(),
-      //       )
-      //     ],
-      //   ),
-      //   onWillPop: rc,
-      // ),
+class AddDialog extends StatefulWidget {
+  AddDialog(this.currentUid);
+
+  final String currentUid;
+
+  @override
+  AddDialogState createState() => new AddDialogState(currentUid);
+}
+
+class AddDialogState extends State<AddDialog> {
+  AddDialogState(this.currentUid);
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final String currentUid;
+
+  Set<String> nameSet = Set();
+  Set<String> uidSet = Set();
+  final _addController = TextEditingController();
+  String? errMsg;
+
+  List<Widget> _buildChip() {
+    return nameSet
+        .map((e) => Chip(
+              label: Text(e),
+              backgroundColor: lightGreyColor,
+            ))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      content: Column(
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Flexible(
+                  child: Container(
+                height: 50.0,
+                child: TextField(
+                  style: TextStyle(color: fontColor),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: lightGreyColor,
+                    errorText: errMsg,
+                    enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide.none,
+                        borderRadius: BorderRadius.circular(30.0)),
+                    focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide.none,
+                        borderRadius: BorderRadius.circular(30.0)),
+                    errorBorder: OutlineInputBorder(
+                        borderSide: BorderSide.none,
+                        borderRadius: BorderRadius.circular(30.0)),
+                    focusedErrorBorder: OutlineInputBorder(
+                        borderSide: BorderSide.none,
+                        borderRadius: BorderRadius.circular(30.0)),
+                  ),
+                  controller: _addController,
+                ),
+              )),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline_rounded),
+                color: darkGreyColor,
+                onPressed: () {
+                  _firestore
+                      .collection("user")
+                      .where("myid", isEqualTo: _addController.text)
+                      .get()
+                      .then((QuerySnapshot snapshot) {
+                    if (snapshot.docs.isNotEmpty) {
+                      ChatUser user = ChatUser.fromDocument(snapshot.docs[0]);
+                      setState(() {
+                        errMsg = null;
+                        nameSet.add(user.name);
+                        uidSet.add(user.id);
+                      });
+                    } else {
+                      setState(() {
+                        errMsg = "Not found ID: ${_addController.text}";
+                      });
+                    }
+                  });
+                },
+              )
+            ],
+          ),
+          // SizedBox(height: 10.0),
+          Container(
+              // height: 30.0,
+              child: Wrap(
+            children: _buildChip(),
+          ))
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          child: Text("OK"),
+          style: TextButton.styleFrom(
+              textStyle: TextStyle(
+            color: fontColor,
+            fontWeight: FontWeight.normal,
+            // fontSize: 12.0,
+          )),
+          onPressed: () => Navigator.pop(context, uidSet),
+        ),
+        TextButton(
+          child: Text("Cancle"),
+          style: TextButton.styleFrom(
+              textStyle: TextStyle(
+            color: fontColor,
+            fontWeight: FontWeight.normal,
+            // fontSize: 12.0,
+          )),
+          onPressed: () => Navigator.pop(context, Set()),
+        )
+      ],
     );
   }
 }
