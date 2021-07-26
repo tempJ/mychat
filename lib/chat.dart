@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mychat/model/chat_chat.dart';
 import 'package:mychat/model/chat_user.dart';
+import 'package:mychat/widget/toast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mychat/const.dart';
@@ -17,17 +19,24 @@ class ChatScreen extends StatefulWidget {
       required this.currentUid,
       required this.chatRoomId,
       required this.title,
+      required this.iconURL,
       required this.uids})
       : super(key: key);
 
   final String currentUid;
   final String chatRoomId;
   String title;
+  String iconURL;
   List<String> uids;
+  // Set<ChatUser> uids;
 
   @override
   ChatScreenState createState() => ChatScreenState(
-      currentUid: currentUid, chatRoomId: chatRoomId, title: title, uids: uids);
+      currentUid: currentUid,
+      chatRoomId: chatRoomId,
+      title: title,
+      iconURL: iconURL,
+      uids: uids);
 }
 
 class ChatScreenState extends State<ChatScreen> {
@@ -36,6 +45,7 @@ class ChatScreenState extends State<ChatScreen> {
       required this.currentUid,
       required this.chatRoomId,
       required this.title,
+      required this.iconURL,
       required this.uids});
   SharedPreferences? prefs;
 
@@ -44,7 +54,11 @@ class ChatScreenState extends State<ChatScreen> {
   final String currentUid;
   final String chatRoomId;
   String title;
+  String iconURL;
+  String? last;
+
   List<String> uids;
+  // Set<ChatUser> uids;
   List<QueryDocumentSnapshot> chatList = new List.from([]);
   // List<Map<Timestamp, String>> chatting = [];
 
@@ -56,12 +70,45 @@ class ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _getUser();
+    // participant = Set.from(uids);
+    // _getUser().then();
+    // _getUser();
+    // .then();
+
+    // StreamBuilder<QuerySnapshot>(
+    //   stream: _firestore
+    //       .collection("chat")
+    //       .doc(chatRoomId)
+    //       .collection(chatRoomId)
+    //       .orderBy("timestamp", descending: true)
+    //       .snapshots(),
+    //   builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+    //     if (snapshot.hasData) {
+    //       chatList.addAll(snapshot.data!.docs);
+    //       last = snapshot.data!.docs.first.get("content");
+
+    //       return ListView.builder(
+    //         padding: EdgeInsets.all(10.0),
+    //         itemBuilder: (context, idx) =>
+    //             _buildChat(context, snapshot.data?.docs[idx]),
+    //         itemCount: snapshot.data?.docs.length,
+    //         reverse: true,
+    //         controller: _listScrollController,
+    //       );
+    //     } else {
+    //       return Center(
+    //         child: CircularProgressIndicator(
+    //           valueColor: AlwaysStoppedAnimation<Color>(darkGreyColor),
+    //         ),
+    //       );
+    //     }
+    //   },
+    // )
   }
 
-  void _getUser() {
+  void _getUser() async {
     for (var uid in uids) {
-      _firestore
+      await _firestore
           .collection("user")
           .doc(uid)
           .get()
@@ -71,13 +118,19 @@ class ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<bool> _onBackPress() {
+  Future<bool> onBackPress() async {
+    if (last != null) {
+      await _firestore
+          .collection("room")
+          .doc(chatRoomId)
+          .update({"last": last});
+    }
     Navigator.pop(context);
 
     return Future.value(false);
   }
 
-  void _onSendChat() {
+  void _onSendChat() async {
     final msg = _inputController.text;
     Timestamp now = Timestamp.now();
 
@@ -97,59 +150,8 @@ class ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // Widget _buildChat(int idx, DocumentSnapshot? document) {
-  //   final item;
-
-  //   if (document != null) {
-  //     ChatChat chat = ChatChat.fromDocument(document);
-  //     item = chat.context[idx];
-  //   } else {
-  //     item = chatting[idx];
-  //   }
-
-  //   final line = item.values.first.split(":");
-  //   final uid = line.first;
-  //   final msg = line.sublist(1).join(":");
-
-  //   final time = item.keys.first.toDate();
-
-  //   return Container(
-  //     margin: EdgeInsets.all(3.0),
-  //     child: Row(
-  //       children: <Widget>[
-  //         Container(
-  //           width: 50.0,
-  //           child: Text(
-  //             uid,
-  //             // overflow: TextOverflow.vi,
-  //           ),
-  //         ),
-  //         Container(
-  //           width: 150.0,
-  //           child: Text(
-  //             msg,
-  //             overflow: TextOverflow.visible,
-  //           ),
-  //         ),
-  //         Container(
-  //           padding: EdgeInsets.all(3.0),
-  //           alignment: Alignment.center,
-  //           width: 40.0,
-  //           decoration: BoxDecoration(
-  //               color: whiteColor,
-  //               borderRadius: BorderRadius.all(Radius.circular(20))),
-  //           child: Text(
-  //             "${time.hour}:${time.minute}",
-  //             style: TextStyle(fontSize: 11.0),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
   Widget _makeBubble(bool isCurrentUser, String content) {
     return Container(
-      // color: (isCurrentUser) ? myBubbleColor : yourBubbleColor,
       margin: EdgeInsets.all(5.0),
       padding: EdgeInsets.all(10.0),
       constraints: BoxConstraints(maxWidth: 200.0),
@@ -192,7 +194,7 @@ class ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildChat(int idx, DocumentSnapshot? document) {
+  Widget _buildChat(BuildContext context, DocumentSnapshot? document) {
     if (document != null) {
       String uid = document.get("uid");
       Timestamp timestamp = document.get("timestamp");
@@ -203,6 +205,7 @@ class ChatScreenState extends State<ChatScreen> {
           margin: EdgeInsets.all(3.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
               _makeTime(dateTime),
               _makeBubble(true, document.get("content"))
@@ -211,24 +214,28 @@ class ChatScreenState extends State<ChatScreen> {
         );
       } else {
         ChatUser user = participant.firstWhere((part) => part.id == uid);
+        // ChatUser user = participant.first;
         Widget pic = defaultPic;
         if (user.photoURL != "") {
-          pic = Image.network(
-            user.photoURL,
-            width: 50,
-            height: 50,
-            fit: BoxFit.fill,
-          );
+          try {
+            pic = Image.network(
+              user.photoURL,
+              width: 50,
+              height: 50,
+              fit: BoxFit.fill,
+            );
+          } catch (e) {}
         }
+        // Fluttertoast.showToast(
+        //     msg: (participant.isEmpty) ? "0" : participant.length.toString());
 
         return Container(
           margin: EdgeInsets.all(3.0),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
-              // Text(user.photoURL),
               Column(
                 children: <Widget>[
-                  // Container(onPress:)
                   Material(
                     child: pic,
                     borderRadius: BorderRadius.all(Radius.circular(25.0)),
@@ -251,7 +258,7 @@ class ChatScreenState extends State<ChatScreen> {
         );
       }
     } else {
-      return SizedBox();
+      return SizedBox.shrink();
     }
   }
 
@@ -267,10 +274,12 @@ class ChatScreenState extends State<ChatScreen> {
       builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (snapshot.hasData) {
           chatList.addAll(snapshot.data!.docs);
+          last = snapshot.data!.docs.first.get("content");
+
           return ListView.builder(
             padding: EdgeInsets.all(10.0),
             itemBuilder: (context, idx) =>
-                _buildChat(idx, snapshot.data?.docs[idx]),
+                _buildChat(context, snapshot.data?.docs[idx]),
             itemCount: snapshot.data?.docs.length,
             reverse: true,
             controller: _listScrollController,
@@ -285,45 +294,6 @@ class ChatScreenState extends State<ChatScreen> {
       },
     ));
   }
-
-  // Widget _buildChattingList() {
-  //   return Flexible(
-  //       child: ListView.builder(
-  //     padding: EdgeInsets.all(10.0),
-  //     itemBuilder: (BuildContext context, int idx) {
-  //       return _buildChat(idx, null);
-  //     },
-  //     itemCount: chatting.length,
-  //     reverse: true,
-  //     controller: _listScrollController,
-  //   ));
-  //   //     child: StreamBuilder<QuerySnapshot>(
-  //   //   stream: _firestore
-  //   //       .collection("chat")
-  //   //       .where("cid", isEqualTo: cid)
-  //   //       .orderBy("timestamp", descending: true)
-  //   //       .snapshots(),
-  //   //   builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
-  //   //     if (snapshot.hasData) {
-  //   //       chatList.addAll(snapshot.data!.docs);
-  //   //       return ListView.builder(
-  //   //         padding: EdgeInsets.all(10.0),
-  //   //         itemBuilder: (context, idx) =>
-  //   //             _buildChat(idx, snapshot.data?.docs[idx]),
-  //   //         itemCount: snapshot.data?.docs.length,
-  //   //         reverse: true,
-  //   //         controller: _listScrollController,
-  //   //       );
-  //   //     } else {
-  //   //       return Center(
-  //   //         child: CircularProgressIndicator(
-  //   //           valueColor: AlwaysStoppedAnimation<Color>(darkGreyColor),
-  //   //         ),
-  //   //       );
-  //   //     }
-  //   //   },
-  //   // ));
-  // }
 
   Widget _buildInput() {
     return Container(
@@ -350,18 +320,7 @@ class ChatScreenState extends State<ChatScreen> {
                 Icons.send,
                 color: darkGreyColor,
               ),
-              onPressed: () => _onSendChat()
-              // () {
-              //   if (_inputController.text.isNotEmpty) {
-              //     final Timestamp date = Timestamp.fromDate(DateTime.now());
-              //     final String msg = "$currentUid:${_inputController.text}";
-              //     setState(() {
-              //       chatting.add({date: msg});
-              //     });
-              //     _inputController.text = "";
-              //   }
-              // },
-              )
+              onPressed: () => _onSendChat())
         ],
       ),
     );
@@ -369,40 +328,59 @@ class ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        backgroundColor: themeColor,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: Stack(
-        children: <Widget>[
-          Container(
-            height: double.infinity,
-            width: double.infinity,
-            color: lightGreyColor,
+    _getUser();
+    Widget icon = defaultPic;
+    if (iconURL != "") {
+      try {
+        icon = Image.network(iconURL, fit: BoxFit.fill);
+      } catch (e) {}
+    }
+
+    return WillPopScope(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: <Widget>[
+                Icon(
+                  Icons.arrow_right,
+                  size: 12,
+                ),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.w300,
+                    fontStyle: FontStyle.italic,
+                  ),
+                )
+              ],
+            ),
+            backgroundColor: themeColor,
+            leading: Transform.scale(
+              scale: 0.7,
+              child: Container(
+                child: icon,
+                clipBehavior: Clip.hardEdge,
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.all(Radius.circular(25.0))),
+              ),
+            ),
+            elevation: 0,
+            actions: <Widget>[],
           ),
-          Column(
-            children: <Widget>[_buildChatList(), _buildInput()],
-          )
-        ],
-      ),
-    );
-    // WillPopScope(
-    //   child: Stack(
-    //     children: <Widget>[
-    //       Container(
-    //         height: double.infinity,
-    //         width: double.infinity,
-    //         color: whiteColor,
-    //       ),
-    //       // Column(
-    //       //   children: <Widget>[_buildChatList(), _buildInput()],
-    //       // )
-    //     ],
-    //   ),
-    //   onWillPop: _onBackPress,
-    // );
+          body: Stack(
+            children: <Widget>[
+              Container(
+                height: double.infinity,
+                width: double.infinity,
+                color: lightGreyColor,
+              ),
+              Column(
+                children: <Widget>[_buildChatList(), _buildInput()],
+              )
+            ],
+          ),
+        ),
+        onWillPop: () => onBackPress());
   }
 }

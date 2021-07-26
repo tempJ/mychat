@@ -1,5 +1,4 @@
 import 'dart:async';
-// import 'dart:html';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,10 +13,10 @@ import 'package:mychat/chat.dart';
 
 import 'package:mychat/const.dart';
 import 'package:mychat/main.dart';
-import 'package:mychat/model/chat_chat.dart';
+
 import 'package:mychat/model/chat_room.dart';
 import 'package:mychat/model/chat_user.dart';
-import 'package:mychat/widget/loading.dart';
+import 'package:mychat/widget/toast.dart';
 
 class HomeScreen extends StatefulWidget {
   final String currentUid;
@@ -78,7 +77,7 @@ class HomeScreenState extends State<HomeScreen> {
           .doc(currentUid)
           .update({'pushToken': token});
     }).catchError((err) {
-      Fluttertoast.showToast(msg: err.message.toString());
+      showToast(err.message.toString());
     });
   }
 
@@ -121,48 +120,60 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   void _buildAddChat() async {
-    Set<String> uidSet = await showDialog(
+    // Set<String> uidSet =
+    Map<String, String>? userMap = await showDialog(
         context: context,
         builder: (context) {
           return AddDialog(currentUid);
         });
+    if (userMap == null) {
+    } else if (userMap.isNotEmpty) {
+      await _firestore
+          .collection("user")
+          .doc(currentUid)
+          .get()
+          .then((DocumentSnapshot document) {
+        ChatUser user = ChatUser.fromDocument(document);
+        userMap[currentUid] = user.name;
+      });
+      showToast(userMap.length.toString());
 
-    if (uidSet.isNotEmpty) {
-      uidSet.add(currentUid);
-      List<String> users = [];
+      // List<String> users = [];
 
-      for (String uid in uidSet) {
-        await _firestore
-            .collection("user")
-            .doc(uid)
-            .get()
-            .then((DocumentSnapshot document) {
-          ChatUser user = ChatUser.fromDocument(document);
-          users.add(user.name);
-        });
-      }
+      // for (String uid in uidSet) {
+      //   await _firestore
+      //       .collection("user")
+      //       .doc(uid)
+      //       .get()
+      //       .then((DocumentSnapshot document) {
+      //     ChatUser user = ChatUser.fromDocument(document);
+      //     users.add(user.name);
+      //   });
+      // }
 
       final document = await _firestore.collection("room").add({
-        "iconUrl": "",
-        "title": (users.length < 3) ? users.first : users.join(", "),
+        "iconURL": "",
+        "title": (userMap.length == 1) ? "Me" : userMap.values.join(", "),
         "last": "",
-        "uids": uidSet.toList(),
+        "uids": userMap.keys.toList(),
       });
 
       await _firestore
           .collection("chat")
           .doc(document.id)
-          .set({"head": currentUid, "context": []});
-    }
+          .set({"head": currentUid});
+    } else {}
   }
 
   Widget _buildRoom(BuildContext context, DocumentSnapshot? document) {
     if (document != null) {
       ChatRoom room = ChatRoom.fromDocument(document);
       Widget icon = defaultPic;
-      if (room.iconUrl != "") {
-        icon = Image.network(room.iconUrl,
-            width: 50, height: 50, fit: BoxFit.fill);
+      if (room.iconURL != "") {
+        try {
+          icon = Image.network(room.iconURL,
+              width: 50, height: 50, fit: BoxFit.fill);
+        } catch (e) {}
       }
 
       return Container(
@@ -206,13 +217,25 @@ class HomeScreenState extends State<HomeScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (context) => ChatScreen(
+              MaterialPageRoute(builder: (context) {
+                // Set<ChatUser> participant = Set();
+                // // for (var uid in room.uids) {
+                //   _firestore
+                //       .collection("user")
+                //       .doc(uid)
+                //       .get()
+                //       .then((DocumentSnapshot document) async {
+                //     participant.add(new ChatUser.fromDocument(document));
+                //   });
+                // }
+
+                return ChatScreen(
                     currentUid: currentUid,
                     chatRoomId: room.id,
                     title: room.title,
-                    uids: room.uids),
-              ),
+                    iconURL: room.iconURL,
+                    uids: room.uids);
+              }),
             );
           },
           style: ButtonStyle(
@@ -231,6 +254,18 @@ class HomeScreenState extends State<HomeScreen> {
       return SizedBox.shrink();
     }
   }
+
+  // void _getUser() async {
+  //   for (var uid in uids) {
+  //     await _firestore
+  //         .collection("user")
+  //         .doc(uid)
+  //         .get()
+  //         .then((DocumentSnapshot document) async {
+  //       participant.add(new ChatUser.fromDocument(document));
+  //     });
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -299,25 +334,38 @@ class AddDialogState extends State<AddDialog> {
 
   final String currentUid;
 
-  Set<String> nameSet = Set();
-  Set<String> uidSet = Set();
+  // Set<String> nameSet = Set();
+  // Set<String> uidSet = Set();
+  // Set<Map<String, String>> userSet = Set();
+  Map<String, String> userMap = Map();
   final _addController = TextEditingController();
-  String? errMsg;
 
   List<Widget> _buildChip() {
-    return nameSet
-        .map((e) => Chip(
-              label: Text(e),
-              backgroundColor: lightGreyColor,
-            ))
-        .toList();
+    List<Widget> chipList = [];
+    userMap.forEach((id, name) => chipList.add(Chip(
+          label: Text(
+            name,
+            // style: TextStyle(color: fontColor),
+          ),
+          backgroundColor: Colors.blueGrey.shade100,
+          deleteIcon: Icon(
+            Icons.close,
+            size: 16.0,
+          ),
+          deleteIconColor: Colors.redAccent,
+          onDeleted: () => setState(() {
+            userMap.remove(id);
+          }),
+        )));
+    return chipList;
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      content: Column(
-        children: <Widget>[
+      content: Container(
+        height: 150.0,
+        child: Column(children: <Widget>[
           Row(
             children: <Widget>[
               Flexible(
@@ -328,7 +376,6 @@ class AddDialogState extends State<AddDialog> {
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: lightGreyColor,
-                    errorText: errMsg,
                     enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide.none,
                         borderRadius: BorderRadius.circular(30.0)),
@@ -345,60 +392,66 @@ class AddDialogState extends State<AddDialog> {
                   controller: _addController,
                 ),
               )),
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline_rounded),
-                color: darkGreyColor,
-                onPressed: () {
-                  _firestore
-                      .collection("user")
-                      .where("myid", isEqualTo: _addController.text)
-                      .get()
-                      .then((QuerySnapshot snapshot) {
-                    if (snapshot.docs.isNotEmpty) {
-                      ChatUser user = ChatUser.fromDocument(snapshot.docs[0]);
-                      setState(() {
-                        errMsg = null;
-                        nameSet.add(user.name);
-                        uidSet.add(user.id);
-                      });
-                    } else {
-                      setState(() {
-                        errMsg = "Not found ID: ${_addController.text}";
-                      });
-                    }
-                  });
-                },
-              )
+              Center(
+                  child: Material(
+                borderRadius: BorderRadius.all(Radius.circular(25.0)),
+                color: whiteColor,
+                clipBehavior: Clip.hardEdge,
+                child: IconButton(
+                  alignment: Alignment.center,
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  color: fontColor,
+                  onPressed: () {
+                    // if(){return null;}
+                    _firestore
+                        .collection("user")
+                        .where("myid", isEqualTo: _addController.text)
+                        .get()
+                        .then((QuerySnapshot snapshot) {
+                      if (snapshot.docs.isNotEmpty) {
+                        ChatUser user = ChatUser.fromDocument(snapshot.docs[0]);
+                        // if (user.id != currentUid) {
+                        setState(() {
+                          // nameSet.add(user.name);
+                          // uidSet.add(user.id);
+                          userMap[user.id] = user.name;
+                          // userSet.add();
+                        });
+                        // } else {
+                        //   showToast("This is your ID");
+                        // }
+                      } else {
+                        showToast("Not found ID: ${_addController.text}");
+                      }
+                    });
+                  },
+                ),
+              )),
             ],
           ),
-          // SizedBox(height: 10.0),
-          Container(
-              // height: 30.0,
-              child: Wrap(
+          SizedBox(height: 15),
+          // Container(
+          //   margin: EdgeInsets.all(5),
+          //   child: Divider(
+          //     // indent: 30,
+          //     // endIndent: 30,
+          //     color: darkGreyColor,
+          //   ),
+          // ),
+          Wrap(
+            spacing: 30.0,
             children: _buildChip(),
-          ))
-        ],
+          )
+        ]),
       ),
       actions: <Widget>[
         TextButton(
           child: Text("OK"),
-          style: TextButton.styleFrom(
-              textStyle: TextStyle(
-            color: fontColor,
-            fontWeight: FontWeight.normal,
-            // fontSize: 12.0,
-          )),
-          onPressed: () => Navigator.pop(context, uidSet),
+          onPressed: () => Navigator.pop(context, userMap),
         ),
         TextButton(
           child: Text("Cancle"),
-          style: TextButton.styleFrom(
-              textStyle: TextStyle(
-            color: fontColor,
-            fontWeight: FontWeight.normal,
-            // fontSize: 12.0,
-          )),
-          onPressed: () => Navigator.pop(context, Set()),
+          onPressed: () => Navigator.pop(context, null),
         )
       ],
     );

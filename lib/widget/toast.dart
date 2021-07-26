@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:mychat/const.dart';
 
 class ShowAlert extends StatelessWidget {
@@ -22,4 +23,9 @@ class ShowAlert extends StatelessWidget {
       ],
     );
   }
+}
+
+void showToast(String msg) {
+  Fluttertoast.showToast(
+      msg: msg, backgroundColor: toastColor, textColor: whiteColor);
 }

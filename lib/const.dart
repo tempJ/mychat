@@ -29,6 +29,10 @@ final loadingColor = Colors.grey.shade200;
 final myBubbleColor = Colors.blue.shade100;
 final yourBubbleColor = Colors.white70;
 
+final toastColor = Colors.blueGrey;
+final chipColor = Colors.blueGrey.shade600;
+
+final cancelColor = Colors.redAccent.shade50;
 final exitColor = Colors.red.shade400;
 
 final Widget defaultPic = Icon(

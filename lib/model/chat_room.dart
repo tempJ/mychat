@@ -3,27 +3,27 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ChatRoom {
   ChatRoom(
       {required this.id,
-      required this.iconUrl,
+      required this.iconURL,
       required this.title,
       required this.last,
       required this.uids});
 
   final String id;
 
-  String iconUrl;
+  String iconURL;
   String title;
   String last;
 
   List<String> uids;
 
   factory ChatRoom.fromDocument(DocumentSnapshot doc) {
-    String iconUrl = "";
+    String iconURL = "";
     String title = "";
     String last = "";
     List<String> uids = [];
 
     try {
-      iconUrl = doc.get("iconUrl");
+      iconURL = doc.get("iconURL");
     } catch (e) {}
 
     try {
@@ -39,6 +39,6 @@ class ChatRoom {
     } catch (e) {}
 
     return ChatRoom(
-        id: doc.id, iconUrl: iconUrl, title: title, last: last, uids: uids);
+        id: doc.id, iconURL: iconURL, title: title, last: last, uids: uids);
   }
 }

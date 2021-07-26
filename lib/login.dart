@@ -1,16 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mychat/widget/alert.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_button/constants.dart';
 import 'package:sign_button/create_button.dart';
 
-import 'package:mychat/const.dart';
 import 'package:mychat/home.dart';
+import 'package:mychat/const.dart';
+import 'package:mychat/widget/toast.dart';
 
 class LoginScreen extends StatefulWidget {
   LoginScreen({Key? key}) : super(key: key);
@@ -37,6 +36,9 @@ class LoginScreenState extends State<LoginScreen> {
   String _titleText = "Sign In";
   String _changeSign = "NEED REGISTER?";
   String _buttonText = "LOGIN";
+
+  bool _isHiddenPassword = true;
+  bool _isHiddenConfirm = true;
 
   @override
   void initState() {
@@ -74,15 +76,15 @@ class LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       if (e.code == "wrong-password") {
-        _buildAlert("Wrong password provided for that user.");
+        showToast("Wrong password provided for that user.");
       }
       if (e.code == "user-not-found") {
-        _buildAlert("No user found for that email.");
+        showToast("No user found for that email.");
       } else if (e.code == "wrong-password") {
-        _buildAlert("Wrong password provided for that user.");
+        showToast("Wrong password provided for that user.");
       }
     } catch (e) {
-      _buildAlert(e.toString());
+      showToast(e.toString());
     }
   }
 
@@ -92,10 +94,18 @@ class LoginScreenState extends State<LoginScreen> {
     final String email = _emailController.text;
     final String password = _passwordController.text;
     final String confirm = _confirmController.text;
+    RegExp regExpID = new RegExp("^[a-zA-Z+-][a-zA-Z0-9_+-]+");
+    RegExp regExpPassword = new RegExp("[a-zA-Z0-9.!_+-]+");
+    RegExp regExpEmail =
+        new RegExp("[a-zA-Z0-9._+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9.]+");
 
     try {
-      if (myid.length < 1) {
-        _buildAlert("Please fill in your ID.");
+      if (myid.length < 4) {
+        showToast("ID must be at least 4 characters.");
+        return null;
+      }
+      if (!regExpID.hasMatch(myid)) {
+        showToast("Invalid ID.");
         return null;
       }
 
@@ -110,27 +120,30 @@ class LoginScreenState extends State<LoginScreen> {
         return 0;
       });
       if (ret == -1) {
-        _buildAlert("This ID already exists.");
+        showToast("This ID already exists.");
         return null;
       }
 
       if (name.length < 1) {
-        _buildAlert("Please fill in your name.");
+        showToast("Please fill in your name.");
         return null;
       }
 
-      if (email.length < 1) {
-        _buildAlert("Please fill in your email.");
+      if (!regExpEmail.hasMatch(email)) {
+        showToast("Invalid email.");
         return null;
       }
 
-      if (password.length < 1) {
-        _buildAlert("Please fill in your password.");
+      if (password.length < 6) {
+        showToast("Password must be at least 6 characters.");
         return null;
       }
-
+      if (!regExpPassword.hasMatch(password)) {
+        showToast("Invalid password.");
+        return null;
+      }
       if (password != confirm) {
-        _buildAlert("Please check your password or confirm password again.");
+        showToast("Please check your password or confirm password again.");
         return null;
       }
 
@@ -149,30 +162,24 @@ class LoginScreenState extends State<LoginScreen> {
         });
       }
 
-      _buildAlert("Sign up completed.");
+      showToast("Sign up completed.");
 
       setState(() {
         _titleText = "Sign In";
         _changeSign = "NEED REGISTER?";
         _buttonText = "LOGIN";
+        _isHiddenPassword = true;
+        _isHiddenConfirm = true;
       });
     } on FirebaseAuthException catch (e) {
       if (e.code == "weak-password") {
-        _buildAlert("The password provided is too weak.");
+        showToast("The password provided is too weak.");
       } else if (e.code == "email-already-in-use") {
-        _buildAlert("The account already exists for that email.");
+        showToast("The account already exists for that email.");
       }
     } catch (e) {
-      _buildAlert(e.toString());
+      showToast(e.toString());
     }
-  }
-
-  void _buildAlert(String error) {
-    showDialog(
-        context: context,
-        builder: (context) {
-          return ShowAlert(error);
-        });
   }
 
   Widget _buildForm(String label) {
@@ -187,15 +194,49 @@ class LoginScreenState extends State<LoginScreen> {
                 : ((label == "Name")
                     ? _nameController
                     : ((label == "ID") ? _idController : _emailController))),
-        obscureText: label.contains("Password") ? true : false,
+        obscureText: label.contains("Password")
+            ? ((label.contains("Confirm"))
+                ? _isHiddenConfirm
+                : _isHiddenPassword)
+            : false,
         style: TextStyle(color: whiteColor),
         decoration: InputDecoration(
-            enabledBorder:
-                UnderlineInputBorder(borderSide: BorderSide(color: whiteColor)),
-            focusedBorder:
-                UnderlineInputBorder(borderSide: BorderSide(color: whiteColor)),
-            labelText: label,
-            labelStyle: TextStyle(color: whiteColor)),
+          enabledBorder:
+              UnderlineInputBorder(borderSide: BorderSide(color: whiteColor)),
+          focusedBorder:
+              UnderlineInputBorder(borderSide: BorderSide(color: whiteColor)),
+          labelText: label,
+          labelStyle: TextStyle(color: whiteColor),
+          suffixIcon: label.contains("Password")
+              ? ((label.contains("Confirm"))
+                  ? IconButton(
+                      onPressed: () => setState(() {
+                            _isHiddenConfirm = !_isHiddenConfirm;
+                          }),
+                      icon: _isHiddenConfirm
+                          ? Icon(
+                              Icons.visibility,
+                              color: whiteColor,
+                            )
+                          : Icon(
+                              Icons.visibility_off,
+                              color: whiteColor,
+                            ))
+                  : IconButton(
+                      onPressed: () => setState(() {
+                            _isHiddenPassword = !_isHiddenPassword;
+                          }),
+                      icon: _isHiddenPassword
+                          ? Icon(
+                              Icons.visibility,
+                              color: whiteColor,
+                            )
+                          : Icon(
+                              Icons.visibility_off,
+                              color: whiteColor,
+                            )))
+              : null,
+        ),
       ),
     );
   }
@@ -258,12 +299,16 @@ class LoginScreenState extends State<LoginScreen> {
                                   _titleText = "Sign Up";
                                   _changeSign = "NEED LOGIN?";
                                   _buttonText = "REGISTER";
+                                  _isHiddenPassword = true;
+                                  _isHiddenConfirm = true;
                                 });
                               } else {
                                 setState(() {
                                   _titleText = "Sign In";
                                   _changeSign = "NEED REGISTER?";
                                   _buttonText = "LOGIN";
+                                  _isHiddenPassword = true;
+                                  _isHiddenConfirm = true;
                                 });
                               }
                             }),
